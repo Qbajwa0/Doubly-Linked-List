@@ -1,0 +1,297 @@
+.data
+# Menu options and messages
+options:        .asciiz "Please type in one of the number below and press enter: \n 1 - exit program \n 2 - next node \n 3 - previous node \n 4 - insert after current node \n 5 - delete current node \n 6 - reset \n 7 - debug \n 8 - insert at head \n 9 - insert at tail \n 10 - traverse forward \n 11 - traverse backward \n"
+insertMessage:  .asciiz "Please type a string up to 10 characters and press enter\n"
+character:      .asciiz ""
+empty:          .asciiz "There is no node yet\n"
+doneAdding:     .asciiz "\nAdding is done\n"
+currentIs:      .asciiz "The current node: "
+currentValue:   .asciiz "Current node value: "
+emptyLine:      .asciiz "\n"
+array:          .asciiz "All elements in the string: \n"
+sep:            .asciiz "\t"
+userInput:      .word 0
+
+.text
+# Macros
+.macro checkChoice(%option, %label)
+    beq $t0, %option, %label
+.end_macro
+
+.macro consolePrint(%text)
+    move $a0, %text
+    li $v0, 4
+    syscall
+.end_macro
+
+.macro getInput
+    li $v0, 5
+    syscall
+    sw $v0, userInput
+.end_macro
+
+start:
+    beqz $s7, noEle               # If the list is empty, jump to noEle
+    la $a0, currentIs             # Print "The current node: "
+    consolePrint($a0)
+    move $a0, $a3                 # Print the current node address
+    li $v0, 4
+    syscall
+    la $a0, currentValue          # Print "Current node value: "
+    consolePrint($a0)
+    la $a0, 4($a3)                # Print the value of the current node
+    li $v0, 4
+    syscall
+    la $a0, emptyLine             # Print an empty line
+    consolePrint($a0)
+    j optionMenu
+
+# No elements in the list
+noEle:
+    la $a0, empty                 # Print "no elements" message
+    consolePrint($a0)
+    j optionMenu
+
+# Menu options
+optionMenu:
+    la $a0, options
+    consolePrint($a0)
+    getInput                      # Get user input
+    lw $t9, userInput
+    move $t0, $t9
+    checkChoice(1, exit)
+    checkChoice(2, next)
+    checkChoice(3, previous)
+    checkChoice(4, addNode)
+    checkChoice(5, delNode)
+    checkChoice(6, reset)
+    checkChoice(7, printEverything)
+    checkChoice(8, insertHead)
+    checkChoice(9, insertTail)
+    checkChoice(10, traverseForward)
+    checkChoice(11, traverseBackward)
+    j optionMenu
+
+# Reset current pointer to the head
+reset:
+    move $a3, $s7                # Reset current pointer to head
+    j start                      # Return to main menu
+
+# Traverse to the next node
+next:
+    lw $t1, 16($a3)              # Load the next pointer
+    beqz $t1, start              # If end of the list, return to menu
+    move $a3, $t1                # Update current pointer
+    j start
+
+# Traverse to the previous node
+previous:
+    lw $t1, 0($a3)               # Load the previous pointer
+    beqz $t1, start              # If at the head, return to menu
+    move $a3, $t1                # Update current pointer
+    j start
+
+# Traverse forward from the head
+traverseForward:
+    move $t1, $s7                # Start from the head
+forwardLoop:
+    beqz $t1, endTraversal       # If no more nodes, end traversal
+    la $a0, currentIs            # Print "The current node: "
+    consolePrint($a0)
+    move $a0, $t1                # Print node address
+    li $v0, 4
+    syscall
+    la $a0, currentValue         # Print "Current node value: "
+    consolePrint($a0)
+    la $a0, 4($t1)               # Print node value
+    li $v0, 4
+    syscall
+    lw $t1, 16($t1)              # Move to the next node
+    j forwardLoop
+
+endTraversal:
+    la $a0, emptyLine            # Print an empty line
+    consolePrint($a0)
+    j start
+
+# Traverse backward from the current node
+traverseBackward:
+    move $t1, $a3                # Start from the current node
+backwardLoop:
+    beqz $t1, endTraversal       # If no more nodes, end traversal
+    la $a0, currentIs            # Print "The current node: "
+    consolePrint($a0)
+    move $a0, $t1                # Print node address
+    li $v0, 4
+    syscall
+    la $a0, currentValue         # Print "Current node value: "
+    consolePrint($a0)
+    la $a0, 4($t1)               # Print node value
+    li $v0, 4
+    syscall
+    lw $t1, 0($t1)               # Move to the previous node
+    j backwardLoop
+
+# Insert a node after the current node
+addNode:
+    la $a0, insertMessage
+    consolePrint($a0)
+    li $v0, 9                    # Allocate space for the new node
+    li $a0, 20
+    syscall
+    move $t1, $v0
+
+    sw $zero, 0($t1)             # Initialize previous pointer
+    sw $zero, 16($t1)            # Initialize next pointer
+
+    # Read input string for the node
+    li $v0, 8
+    la $a0, 4($t1)
+    li $a1, 10
+    syscall
+
+    # If list is empty, make this the first node
+    beqz $s7, declareFirstNode
+
+    lw $t2, 16($a3)              # Load the next pointer of the current node
+    beqz $t2, noNextNode
+
+    # Insert in the middle
+    sw $t1, 16($a3)              # Update current node's next pointer
+    sw $a3, 0($t1)               # Update new node's previous pointer
+    sw $t2, 16($t1)              # Update new node's next pointer
+    sw $t1, 0($t2)               # Update next node's previous pointer
+    move $a3, $t1                # Update current pointer to the new node
+    j start
+
+noNextNode:
+    sw $t1, 16($a3)              # Update current node's next pointer
+    sw $a3, 0($t1)               # Update new node's previous pointer
+    move $a3, $t1                # Update current pointer
+    j start
+
+# Declare the first node
+declareFirstNode:
+    move $s7, $t1                # Set head pointer
+    move $a3, $t1                # Set current pointer
+    j start
+
+# Delete the current node
+delNode:
+    beqz $s7, start              # If the list is empty, return to the menu
+    # Handle deleting the head
+    lw $t2, 0($a3)               # Load the previous pointer
+    beqz $t2, delHead            # If no previous node, delete the head
+    # Handle deleting the tail
+    lw $t3, 16($a3)              # Load the next pointer
+    beqz $t3, delTail            # If no next node, delete the tail
+    # General case: Delete a node in the middle
+    lw $t3, 16($a3)              # Load the next node
+    sw $t2, 0($t3)               # Update the previous pointer of the next node
+    lw $t2, 0($a3)               # Load the previous node
+    sw $t3, 16($t2)              # Update the next pointer of the previous node
+    move $a3, $t3                # Move the current pointer to the next node
+    j start                      # Return to the menu
+
+# Delete the head node
+delHead:
+    lw $t2, 16($a3)              # Load the next node
+    beqz $t2, resetList          # If no next node, reset the list
+    sw $zero, 0($t2)             # Update the new head's previous pointer
+    move $s7, $t2                # Update the head pointer
+    move $a3, $t2                # Update the current pointer
+    j start                      # Return to the menu
+
+# Delete the tail node
+delTail:
+    lw $t2, 0($a3)               # Load the previous node
+    sw $zero, 16($t2)            # Update the new tail's next pointer
+    move $a3, $t2                # Update the current pointer
+    j start                      # Return to the menu
+
+# Reset the list
+resetList:
+    move $s7, $zero              # Reset the head pointer
+    move $a3, $zero              # Reset the current pointer
+    j start
+
+# Print all nodes
+printEverything:
+    la $a0, array
+    consolePrint($a0)
+    move $t1, $s7
+printLoop:
+    beqz $t1, endPrint
+    la $a0, sep
+    consolePrint($a0)
+    la $a0, 4($t1)
+    consolePrint($a0)
+    lw $t1, 16($t1)
+    j printLoop
+
+endPrint:
+    la $a0, emptyLine
+    consolePrint($a0)
+    j start
+
+# Insert at the head of the list
+insertHead:
+    la $a0, insertMessage
+    consolePrint($a0)
+    li $v0, 9                    # Allocate space
+    li $a0, 20
+    syscall
+    move $t1, $v0
+
+    sw $zero, 0($t1)             # Initialize previous pointer
+    move $t2, $s7                # Load the current head
+    sw $t2, 16($t1)              # New node's next pointer points to old head
+
+    beqz $t2, updateHead         # If list is empty, skip pointer update
+    sw $t1, 0($t2)               # Update old head's previous pointer
+
+updateHead:
+    move $s7, $t1                # New node becomes the head
+    move $a3, $t1                # Update current pointer
+    li $v0, 8
+    la $a0, 4($t1)
+    li $a1, 10
+    syscall
+    la $a0, doneAdding
+    consolePrint($a0)
+    j start
+
+# Insert at the tail of the list
+insertTail:
+    beqz $s7, insertHead         # If the list is empty, insert at the head
+    move $t1, $s7
+findTail:
+    lw $t2, 16($t1)              # Traverse to the next node
+    beqz $t2, createTail         # Stop at the last node
+    move $t1, $t2
+    j findTail
+
+createTail:
+    la $a0, insertMessage
+    consolePrint($a0)
+    li $v0, 9                    # Allocate space
+    li $a0, 20
+    syscall
+    move $t2, $v0
+
+    sw $zero, 16($t2)            # New node's next pointer is NULL
+    sw $t1, 0($t2)               # New node's previous pointer points to old tail
+    sw $t2, 16($t1)              # Update old tail's next pointer
+    move $a3, $t2                # Update current pointer
+    li $v0, 8
+    la $a0, 4($t2)
+    li $a1, 10
+    syscall
+    la $a0, doneAdding
+    consolePrint($a0)
+    j start
+
+# Exit the program
+exit:
+    li $v0, 17                   # Exit syscall
+    syscall
